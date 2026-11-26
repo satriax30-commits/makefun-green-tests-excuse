@@ -24,7 +24,7 @@ import { dirname, join } from "node:path";
 const EXCUSE =
   "All 214 tests pass because each one asserts the function returns whatever it returns. The app works exactly as tested: not at all.";
 
-function validate(line: string): void {
+function checkLength(line: string): void {
   const chars = [...line];
   if (chars.length < 1 || chars.length > 140) {
     throw new Error(`entry must be 1-140 characters, got ${chars.length}`);
@@ -32,24 +32,39 @@ function validate(line: string): void {
   if (line.trim().length === 0) {
     throw new Error("entry must not be only whitespace");
   }
+}
+
+function checkSingleLine(line: string): void {
   if (line.includes("\n") || line.includes("\r")) {
     throw new Error("entry must be a single line");
   }
 }
 
+function validate(line: string): void {
+  checkLength(line);
+  checkSingleLine(line);
+}
+
+function resolveOutDir(): string {
+  return process.env.OUTPUT_DIR ?? process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+}
+
+function verifyReadBack(outPath: string, expected: string): number {
+  // Read-back self-check: what landed on disk must be exactly the line.
+  const back = readFileSync(outPath, "utf8");
+  if (back !== expected) {
+    throw new Error("read-back mismatch: entry.txt does not match the line");
+  }
+  return Buffer.byteLength(back, "utf8");
+}
+
 function main(): void {
   validate(EXCUSE);
-  const outDir =
-    process.env.OUTPUT_DIR ?? process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+  const outDir = resolveOutDir();
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, "entry.txt");
   writeFileSync(outPath, EXCUSE, "utf8");
-  // Read-back self-check: what landed on disk must be exactly the line.
-  const back = readFileSync(outPath, "utf8");
-  if (back !== EXCUSE) {
-    throw new Error("read-back mismatch: entry.txt does not match the line");
-  }
-  const bytes = Buffer.byteLength(back, "utf8");
+  const bytes = verifyReadBack(outPath, EXCUSE);
   console.log(
     `wrote ${[...EXCUSE].length} chars (${bytes} bytes) to ${outPath}`,
   );
